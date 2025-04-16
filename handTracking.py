@@ -2,72 +2,75 @@ import cv2
 import mediapipe as mp
 import pyautogui
 import math
+import time
 
-# Get screen resolution
 screen_width, screen_height = pyautogui.size()
 
-# Initialize MediaPipe hands
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands(max_num_hands=1, min_detection_confidence=0.7)
 mp_draw = mp.solutions.drawing_utils
 
-# Open webcam
 cap = cv2.VideoCapture(0)
+
+prev_y = 0
+scroll_mode = False
+last_click_time = 0  # ← click delay timer
 
 while True:
     success, frame = cap.read()
-    frame = cv2.flip(frame, 1)  # Mirror image
-    frame_height, frame_width, _ = frame.shape
+    frame = cv2.flip(frame, 1)
+    h, w, _ = frame.shape
 
-    # Convert BGR to RGB for MediaPipe
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     result = hands.process(rgb_frame)
 
-    # Process hand landmarks
     if result.multi_hand_landmarks:
         for hand_landmarks in result.multi_hand_landmarks:
-            lm_list = hand_landmarks.landmark
+            lm = hand_landmarks.landmark
 
-            # Get index finger tip (landmark 8)
-            index_x = int(lm_list[8].x * frame_width)
-            index_y = int(lm_list[8].y * frame_height)
+            index_x, index_y = int(lm[8].x * w), int(lm[8].y * h)
+            thumb_x, thumb_y = int(lm[4].x * w), int(lm[4].y * h)
+            middle_x, middle_y = int(lm[12].x * w), int(lm[12].y * h)
 
-            # Get thumb tip (landmark 4)
-            thumb_x = int(lm_list[4].x * frame_width)
-            thumb_y = int(lm_list[4].y * frame_height)
+            cv2.circle(frame, (index_x, index_y), 8, (255, 0, 0), -1)
+            cv2.circle(frame, (thumb_x, thumb_y), 8, (0, 255, 0), -1)
+            cv2.circle(frame, (middle_x, middle_y), 8, (255, 255, 0), -1)
 
-            # Draw fingertip circles
-            cv2.circle(frame, (index_x, index_y), 10, (255, 0, 0), -1)  # Blue: Index
-            cv2.circle(frame, (thumb_x, thumb_y), 10, (0, 255, 0), -1)  # Green: Thumb
+            screen_x = int(lm[8].x * screen_width)
+            screen_y = int(lm[8].y * screen_height)
+            pyautogui.moveTo(screen_x, screen_y)
 
-            # Draw a line between thumb and index
-            cv2.line(frame, (index_x, index_y), (thumb_x, thumb_y), (0, 255, 255), 2)
-
-            # Calculate screen coords for index tip
-            screen_x = int(lm_list[8].x * screen_width)
-            screen_y = int(lm_list[8].y * screen_height)
-
-            # Move the mouse
-            pyautogui.moveTo(screen_x, screen_y)q
-
-            # Check distance between index and thumb tips
-            distance = math.hypot(index_x - thumb_x, index_y - thumb_y)
-
-            if distance < 40:
+            # ----- CLICK -----
+            dist_click = math.hypot(index_x - thumb_x, index_y - thumb_y)
+            current_time = time.time()
+            if dist_click < 25 and (current_time - last_click_time) > 3:
                 pyautogui.click()
+                last_click_time = current_time
                 cv2.putText(frame, "Click!", (index_x + 20, index_y - 20),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-            # Draw hand landmarks and connections
+            # ----- SCROLL -----
+            dist_scroll = math.hypot(index_x - middle_x, index_y - middle_y)
+            if dist_scroll < 40:
+                cv2.putText(frame, "Scroll Mode", (10, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+                if not scroll_mode:
+                    prev_y = index_y
+                    scroll_mode = True
+                else:
+                    delta_y = index_y - prev_y
+                    if abs(delta_y) > 5:
+                        pyautogui.scroll(-int(delta_y * 5))
+                        prev_y = index_y
+            else:
+                scroll_mode = False
+
             mp_draw.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-    # Show the frame in a window
-    cv2.imshow("Virtual Mouse", frame)
-
-    # Exit on pressing 'q'
+    cv2.imshow("Virtual Mouse with Scroll & Click Delay", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
-# Release everything
 cap.release()
 cv2.destroyAllWindows()
