@@ -1,3 +1,21 @@
+"""
+gesture_mouse.py
+-----------------
+A virtual mouse controlled entirely by hand gestures using Python + OpenCV + MediaPipe.
+Inspired by gesture systems like Apple Vision Pro.
+
+Features:
+- Air Mouse (index finger controls cursor)
+- Click (pinch index and thumb)
+- Scroll (pinch index and middle finger and move vertically)
+- 1.5-second click cooldown
+Author  : Rohith Reddy (https://www.linkedin.com/in/rohithreddy097/)
+Created : April 2025
+License : MIT
+
+© 2025 Rohith Reddy. All rights reserved.
+"""
+
 import cv2
 import mediapipe as mp
 import pyautogui
@@ -43,7 +61,7 @@ while True:
             # ----- CLICK -----
             dist_click = math.hypot(index_x - thumb_x, index_y - thumb_y)
             current_time = time.time()
-            if dist_click < 25 and (current_time - last_click_time) > 3:
+            if dist_click < 25 and (current_time - last_click_time) > 1.5:
                 pyautogui.click()
                 last_click_time = current_time
                 cv2.putText(frame, "Click!", (index_x + 20, index_y - 20),
